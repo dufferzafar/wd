@@ -6,7 +6,8 @@ use std::{
     sync::Arc,
 };
 
-use crate::{action::Direction, dateparser::datetime::Parse, drainrs::RecordParser};
+// drainrs::RecordParser
+use crate::{action::Direction, dateparser::datetime::Parse};
 use bstr::{BStr, ByteSlice};
 use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone, Utc};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
@@ -14,6 +15,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifi
 use memmap::Mmap;
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
+    // str::pattern::{Pattern, Searcher},
+};
+
+// use log::{debug, info, error, warn};
+use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Paragraph, Wrap},
@@ -112,13 +118,15 @@ pub fn highlight_line(line: &mut DispLine, needle: &str) {
     if needle.is_empty() {
         return;
     }
+    if line.line.spans.is_empty() {
+        return;
+    }
     let orig_line = line.line.clone();
     let line_txt = orig_line.spans[0].content.to_owned();
     let mut searcher = needle.into_searcher(&line_txt);
     let mut spans = Vec::new();
     let mut last_plain = 0;
     while let Some((start, end)) = searcher.next_match() {
-        // let spans
         spans.push(Span {
             content: line_txt[last_plain..start].to_owned().into(),
             style: Style::default(),
@@ -138,6 +146,7 @@ pub fn highlight_line(line: &mut DispLine, needle: &str) {
     line.line = Line {
         alignment: None,
         spans,
+        style: Style::default(),
     };
 }
 
@@ -152,7 +161,7 @@ pub fn highlight_lines(lines: &mut [DispLine], needle: &str) {
 
 pub fn get_visible_lines(
     source: &BStr,
-    filters: &Vec<LineFilter>,
+    filters: &[LineFilter],
     rows: u16,
     cols: u16,
     offset_into_big: usize,
@@ -285,7 +294,7 @@ fn find_line_starting_before(s: &[u8], byte_offset: usize) -> usize {
 }
 
 fn find_start_line_pct(mmap: &Mmap, pct: f64) -> usize {
-    let pct = f64::min(f64::max(pct, 0.0), 100.0);
+    let pct = pct.clamp(0.0, 100.0);
     let going_to = (mmap.len() as f64 * (pct / 100.0)).floor() as usize;
     find_line_starting_before(mmap, going_to)
 }
@@ -351,9 +360,9 @@ mod tests {
     #[test]
     fn test_visible() {
         let call = |rows, cols| -> String {
-            get_visible_lines("lol".into(), &vec![], rows, cols, 0)
+            get_visible_lines("lol".into(), &[], rows, cols, 0)
                 .iter()
-                .map(|l| l.line.spans[0].content.clone().to_owned())
+                .map(|l| l.line.spans[0].content.clone().clone())
                 .intersperse("\n".to_string().into())
                 .collect()
         };
@@ -364,9 +373,9 @@ mod tests {
     fn test_visible1() {
         let call = |rows, cols| -> String {
             // let s: Vec<_> = self.view.iter().map(|dl| dl.line.clone()).collect();
-            get_visible_lines(LINES.into(), &vec![], rows, cols, 0)
+            get_visible_lines(LINES.into(), &[], rows, cols, 0)
                 .iter()
-                .map(|l| l.line.spans[0].content.clone().to_owned())
+                .map(|l| l.line.spans[0].content.clone().clone())
                 .intersperse("\n".to_string().into())
                 .collect()
         };
@@ -381,9 +390,9 @@ mod tests {
         // assert_eq!(res, comp);
         // assert_eq!(get_visible_lines(s, &vec!(), 1, 1), comp);
         let call = |rows, cols| -> String {
-            get_visible_lines(s, &vec![], rows, cols, 0)
+            get_visible_lines(s, &[], rows, cols, 0)
                 .iter()
-                .map(|l| l.line.spans[0].content.clone().to_owned())
+                .map(|l| l.line.spans[0].content.clone().clone())
                 .intersperse("\n".to_string().into())
                 .collect()
         };
@@ -395,44 +404,32 @@ mod tests {
         assert_eq!(call(3, 2), "\n\nhi");
     }
 
-    #[test]
-    fn test_allowed() {
-        assert!(line_allowed(&vec!(), "Lol").0);
-        assert!(
-            !line_allowed(
-                &vec!(LineFilter::new("Lol".to_string(), FilterType::Out)),
-                "Lol"
-            )
-            .0
-        );
-        assert!(
-            line_allowed(
-                &vec!(LineFilter::new("Lol".to_string(), FilterType::In)),
-                "Lol"
-            )
-            .0
-        );
-        assert!(
-            !line_allowed(
-                &vec!(
-                    LineFilter::new("Lol".to_string(), FilterType::In),
-                    LineFilter::new("Lol".to_string(), FilterType::Out),
-                ),
-                "Lol"
-            )
-            .0
-        );
-        assert!(
-            line_allowed(
-                &vec!(
-                    LineFilter::new("Lol".to_string(), FilterType::Out),
-                    LineFilter::new("Lol".to_string(), FilterType::In),
-                ),
-                "Lol"
-            )
-            .0
-        );
-    }
+    // #[test]
+    // fn test_allowed() {
+    //     assert!(line_allowed(&[], "Lol"));
+    //     assert!(!line_allowed(
+    //         &[LineFilter::new("Lol".to_string(), FilterType::Out)],
+    //         "Lol"
+    //     ));
+    //     assert!(line_allowed(
+    //         &[LineFilter::new("Lol".to_string(), FilterType::In)],
+    //         "Lol"
+    //     ));
+    //     assert!(!line_allowed(
+    //         &[
+    //             LineFilter::new("Lol".to_string(), FilterType::In),
+    //             LineFilter::new("Lol".to_string(), FilterType::Out)
+    //         ],
+    //         "Lol"
+    //     ));
+    //     assert!(line_allowed(
+    //         &[
+    //             LineFilter::new("Lol".to_string(), FilterType::Out),
+    //             LineFilter::new("Lol".to_string(), FilterType::In)
+    //         ],
+    //         "Lol"
+    //     ));
+    // }
 
     #[test]
     fn test_first() {
@@ -461,6 +458,7 @@ mod tests {
     #[test]
     fn test_second() {
         assert_eq!(
+            // &DateTime::<FixedOffset>::parse_from_rfc3339("2022-03-22T08:51:08Z")
             bin_search(
                 LINES.as_bytes(),
                 &Local
@@ -572,7 +570,6 @@ fn bin_search(s: &[u8], dt: &DateTime<Utc>) -> Result<FileOffset, TsBinSearchErr
 #[derive(PartialEq, Eq, Clone)]
 pub struct DispLine {
     file_loc: FileLoc, // <-- [begin, end)
-    // line: String,
     line: ratatui::text::Line<'static>,
 }
 
@@ -611,15 +608,14 @@ pub struct Home {
     search_visits: Vec<usize>,
 
     screen: Screen,
-
-    /// Pre-filtered based on each action.
+    // Pre-filtered based on each action.
     // view: Vec<Cow<'mmap, str>>,
     // view: Vec<DispLine>,
     // view: Vec<String>,
-    /// Used for PGDOWN/UP.
+    // Used for PGDOWN/UP.
     // screen_size: Rect,
-    drain_parsed: HashMap<FileLoc, i32>,
-    drain_parser: RecordParser,
+    // drain_parsed: HashMap<FileLoc, i32>,
+    // drain_parser: RecordParser,
 }
 
 impl Home {
@@ -646,8 +642,8 @@ impl Home {
                 width: 1000,
                 height: 1000,
             }),
-            drain_parsed: HashMap::new(),
-            drain_parser: RecordParser::default(),
+            // drain_parsed: HashMap::new(),
+            // drain_parser: RecordParser::default(),
         }
     }
 
@@ -902,10 +898,7 @@ impl Home {
 
         for capture in re.captures_iter(filename) {
             let s = capture.get(0).unwrap().as_str();
-            match NaiveDate::parse_from_str(s, "%Y%m%d") {
-                Ok(nd) => return Some(nd),
-                Err(_) => {}
-            };
+            if let Ok(nd) = NaiveDate::parse_from_str(s, "%Y%m%d") { return Some(nd) };
         }
         None
     }
@@ -922,82 +915,82 @@ impl Home {
         }
     }
 
-    fn autoskip(&mut self) {
-        // Parse what's on screen, then skip until we see a new template on-screen.
-        // Perhaps grey out what's old vs new?
-        // Here our abstractions first present a problem.
-        // I'd like to just do next_line and then pass that line into
-        // drain. But this means we will be highlighting lines that may never be shown.
-        // The most obvious approach at the moment is to defer highlighting until
-        // the update step is almost done, then come back and do it in one pass.
-        // This will also speed it up for PGUP/DOWN. For now, it's fine as-is.
-        let mut templates_on_screen: HashSet<i32> = HashSet::new();
-        for line in &self.screen.view {
-            let entry = self.drain_parsed.entry(line.file_loc);
-            match entry {
-                std::collections::hash_map::Entry::Occupied(entry) => {
-                    templates_on_screen.insert(*entry.get());
-                }
-                std::collections::hash_map::Entry::Vacant(entry) => {
-                    let raw_line = &self.mmap[line.file_loc.0..line.file_loc.1].to_str_lossy();
-                    let template_id = match self.drain_parser.parse_record(raw_line) {
-                        crate::drainrs::RecordParsedResult::NewTemplate(rp) => rp.template_id,
-                        crate::drainrs::RecordParsedResult::RecordParsed(rp) => rp.template_id,
-                        crate::drainrs::RecordParsedResult::ParseError(e) => {
-                            error!("{}", e);
-                            continue;
-                        }
-                    };
-                    let small_tid = i32::try_from(template_id).unwrap();
-                    templates_on_screen.insert(small_tid);
-                    entry.insert(small_tid);
-                }
-            }
-        }
+    // fn autoskip(&mut self) {
+    //     // Parse what's on screen, then skip until we see a new template on-screen.
+    //     // Perhaps grey out what's old vs new?
+    //     // Here our abstractions first present a problem.
+    //     // I'd like to just do next_line and then pass that line into
+    //     // drain. But this means we will be highlighting lines that may never be shown.
+    //     // The most obvious approach at the moment is to defer highlighting until
+    //     // the update step is almost done, then come back and do it in one pass.
+    //     // This will also speed it up for PGUP/DOWN. For now, it's fine as-is.
+    //     let mut templates_on_screen: HashSet<i32> = HashSet::new();
+    //     for line in &self.screen.view {
+    //         let entry = self.drain_parsed.entry(line.file_loc);
+    //         match entry {
+    //             std::collections::hash_map::Entry::Occupied(entry) => {
+    //                 templates_on_screen.insert(*entry.get());
+    //             }
+    //             std::collections::hash_map::Entry::Vacant(entry) => {
+    //                 let raw_line = &self.mmap[line.file_loc.0..line.file_loc.1].to_str_lossy();
+    //                 let template_id = match self.drain_parser.parse_record(raw_line) {
+    //                     crate::drainrs::RecordParsedResult::NewTemplate(rp) => rp.template_id,
+    //                     crate::drainrs::RecordParsedResult::RecordParsed(rp) => rp.template_id,
+    //                     crate::drainrs::RecordParsedResult::ParseError(e) => {
+    //                         error!("{}", e);
+    //                         continue;
+    //                     }
+    //                 };
+    //                 let small_tid = i32::try_from(template_id).unwrap();
+    //                 templates_on_screen.insert(small_tid);
+    //                 entry.insert(small_tid);
+    //             }
+    //         }
+    //     }
 
-        for _ in [0..1_000] {
-            // Now, skip until we get a line we haven't seen before.
-            if !self.next_line() {
-                info!("Reached end of file during autoskip.");
-                return;
-            }
-            let line = self.screen.view.last();
-            let line = match line {
-                Some(line) => line,
-                None => return,
-            };
-            let raw_line = &self.mmap[line.file_loc.0..line.file_loc.1].to_str_lossy();
-            let template_id = match self.drain_parser.parse_record(raw_line) {
-                crate::drainrs::RecordParsedResult::NewTemplate(rp) => rp.template_id,
-                crate::drainrs::RecordParsedResult::RecordParsed(rp) => rp.template_id,
-                crate::drainrs::RecordParsedResult::ParseError(e) => {
-                    error!("{}", e);
-                    continue;
-                }
-            };
-            let small_tid = i32::try_from(template_id).unwrap();
+    //     for _ in [0..1_000] {
+    //         // Now, skip until we get a line we haven't seen before.
+    //         if !self.next_line() {
+    //             info!("Reached end of file during autoskip.");
+    //             return;
+    //         }
+    //         let line = self.screen.view.last();
+    //         let line = match line {
+    //             Some(line) => line,
+    //             None => return,
+    //         };
+    //         let raw_line = &self.mmap[line.file_loc.0..line.file_loc.1].to_str_lossy();
+    //         let template_id = match self.drain_parser.parse_record(raw_line) {
+    //             crate::drainrs::RecordParsedResult::NewTemplate(rp) => rp.template_id,
+    //             crate::drainrs::RecordParsedResult::RecordParsed(rp) => rp.template_id,
+    //             crate::drainrs::RecordParsedResult::ParseError(e) => {
+    //                 error!("{}", e);
+    //                 continue;
+    //             }
+    //         };
+    //         let small_tid = i32::try_from(template_id).unwrap();
 
-            let entry = self.drain_parsed.entry(line.file_loc);
-            match entry {
-                std::collections::hash_map::Entry::Occupied(entry) => {
-                    debug!(
-                        "Skipping line {:?} with template: {}",
-                        line.file_loc, self.drain_parser.templates[template_id]
-                    );
-                    continue;
-                }
-                std::collections::hash_map::Entry::Vacant(entry) => {
-                    // Found one!
-                    entry.insert(small_tid);
-                    info!(
-                        "Found line with new template: {}",
-                        self.drain_parser.templates[template_id]
-                    );
-                    return;
-                }
-            }
-        }
-    }
+    //         let entry = self.drain_parsed.entry(line.file_loc);
+    //         match entry {
+    //             std::collections::hash_map::Entry::Occupied(entry) => {
+    //                 debug!(
+    //                     "Skipping line {:?} with template: {}",
+    //                     line.file_loc, self.drain_parser.templates[template_id]
+    //                 );
+    //                 continue;
+    //             }
+    //             std::collections::hash_map::Entry::Vacant(entry) => {
+    //                 // Found one!
+    //                 entry.insert(small_tid);
+    //                 info!(
+    //                     "Found line with new template: {}",
+    //                     self.drain_parser.templates[template_id]
+    //                 );
+    //                 return;
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 impl Component for Home {
@@ -1073,7 +1066,7 @@ impl Component for Home {
             KeyCode::Char('n') => Action::RepeatSearch(crate::action::Direction::Next),
             KeyCode::Char('N') => Action::RepeatSearch(crate::action::Direction::Prev),
             KeyCode::Char('f') => Action::FilterListAction(FilterListAction::OpenFilterScreen),
-            KeyCode::Char('s') => Action::AutoSkip,
+            // KeyCode::Char('s') => Action::AutoSkip,
             _ => Action::Tick,
         }
     }
@@ -1132,7 +1125,8 @@ impl Component for Home {
                     }
                 }
             }
-            Action::AutoSkip => self.autoskip(),
+            // Action::AutoSkip => self.autoskip(),
+            Action::AutoSkip => todo!(),
             Action::TextEntry(_) => {
                 if self.show_filter_screen {
                     self.filter_screen.dispatch(action);
@@ -1172,6 +1166,9 @@ impl Component for Home {
         }
         followup_action
     }
+
+    // TODO Very slow scrolling with the log screen closed, but fast with it open.
+    // I guess this means tui is slowing us down? But can't profile.
 
     fn render(&mut self, f: &mut Frame<'_>, rect: Rect) {
         self.screen.screen_size = rect;

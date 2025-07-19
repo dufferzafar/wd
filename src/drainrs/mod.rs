@@ -50,13 +50,13 @@
 //! We have preliminary support for masking but it's not configurable from outside of the class and the user interface
 //! to it is not yet defined.
 
-use std::{collections::hash_map::RawEntryMut, fmt};
+use std::fmt;
 
 use borrowme::borrowme;
 use json_in_type::list::ToJSONList;
 use json_in_type::*;
 use log::{debug, error};
-use rustc_hash::FxHashMap;
+use hashbrown::hash_map::{HashMap, RawEntryMut};
 use std::iter::zip;
 use thiserror::Error;
 
@@ -109,14 +109,14 @@ fn zip_tokens_and_template<'c>(
     }
 }
 
-#[borrowme]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 // #[borrowed_attr(derive(Debug, PartialEq, Eq, Hash, Clone))]
-#[borrowed_attr(derive(Copy))]
 pub enum LogTemplateItem<'a> {
     StaticToken(&'a str), // Owned because we need to store it.
     Value,                // Python port used "<*>" instead.
 }
+
+
 
 /// The elements in a LogTemplate (not a record).
 /// Given a log-template (in string form) like this,
@@ -514,7 +514,7 @@ fn add_seq_to_prefix_tree<'a>(
     assert!(token_count >= 2);
     let mut cur_node = root.entry(token_count).or_insert_with(|| {
         GraphNodeContents::MiddleNode(MiddleNode {
-            child_d: FxHashMap::default(),
+            child_d: HashMap::default(),
         })
     });
 
@@ -525,7 +525,7 @@ fn add_seq_to_prefix_tree<'a>(
                 GraphNodeContents::LeafNode(Vec::new())
             } else {
                 GraphNodeContents::MiddleNode(MiddleNode {
-                    child_d: FxHashMap::default(),
+                    child_d: HashMap::default(),
                 })
             }
         };
@@ -700,7 +700,7 @@ fn tree_search<'a>(root: &'a TreeRoot, tokens: &[TokenParse]) -> Option<&'a LogC
 
 #[derive(Debug)]
 struct MiddleNode {
-    child_d: FxHashMap<OwnedLogTemplateItem, GraphNodeContents>,
+    child_d: HashMap<OwnedLogTemplateItem, GraphNodeContents>,
 }
 
 #[derive(Debug)]
@@ -709,7 +709,7 @@ enum GraphNodeContents {
     LeafNode(Vec<LogCluster>),
 }
 
-type TreeRoot = FxHashMap<usize, GraphNodeContents>;
+type TreeRoot = HashMap<usize, GraphNodeContents>;
 pub type LogTemplate = Vec<OwnedLogTemplateItem>;
 
 use regex::Regex;

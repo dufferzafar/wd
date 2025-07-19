@@ -7,7 +7,7 @@ pub(crate) enum LineFilterResult {
     Indifferent,
 }
 
-pub(crate) fn line_allowed(filters: &Vec<LineFilter>, line: &str) -> (bool, LineFilterResult) {
+pub(crate) fn line_allowed(filters: &[LineFilter], line: &str) -> (bool, LineFilterResult) {
     let mut cur = LineFilterResult::Indifferent;
     let get_active_filters = || filters.iter().filter(|f| f.enabled);
     for filter in get_active_filters() {

@@ -1,10 +1,9 @@
+#![allow(async_fn_in_trait)]
 use std::io::Stdout;
 
 use anyhow::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
-use ratatui::{backend::CrosstermBackend, layout::Rect, Frame as TuiFrame};
-
-pub type Frame<'a> = TuiFrame<'a, CrosstermBackend<Stdout>>;
+use ratatui::{layout::Rect, Frame};
 
 use crate::{
     action::{Action, ActionHandler},
